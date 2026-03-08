@@ -15,7 +15,7 @@
 //! This allows us to use the alignment score as a continuous feature for clustering
 //! or churn prediction models.
 
-use structop::soft_dtw::soft_dtw_divergence_cost;
+use structops::soft_dtw::soft_dtw_divergence_cost;
 
 // Simple one-hot state encoding
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,9 +80,16 @@ fn print_seq(name: &str, seq: &[State]) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let golden_path = [State::Landing, State::Pricing, State::SignUp];
-    
+
     let user_a = [State::Landing, State::Pricing, State::SignUp];
-    let user_b = [State::Landing, State::Blog, State::Pricing, State::Blog, State::Pricing, State::SignUp];
+    let user_b = [
+        State::Landing,
+        State::Blog,
+        State::Pricing,
+        State::Blog,
+        State::Pricing,
+        State::SignUp,
+    ];
     let user_c = [State::Landing, State::Blog, State::Exit];
 
     let gamma = 1.0;

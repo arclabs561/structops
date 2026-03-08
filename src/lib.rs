@@ -10,11 +10,3 @@
 
 pub mod soft_dtw;
 pub mod soft_shortest_path;
-
-/// Re-export commonly-used operators at crate root for examples.
-pub use soft_dtw::*;
-
-#[cfg(test)]
-mod tests {
-    // Keep this module for crate-level smoke tests if needed.
-}

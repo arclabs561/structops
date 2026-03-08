@@ -40,6 +40,14 @@ pub enum Error {
         /// Number of nodes in the graph.
         n: usize,
     },
+    /// Non-finite edge cost.
+    #[error("non-finite edge cost at edge {edge_idx}: cost={cost}")]
+    NonFiniteCost {
+        /// Index of the offending edge in the provided slice.
+        edge_idx: usize,
+        /// The non-finite cost value.
+        cost: f64,
+    },
     /// DAG/topological invariant violated.
     #[error("expected DAG/topological order with from < to; edge {edge_idx} has ({from}->{to})")]
     NotDagOrder {
@@ -122,56 +130,13 @@ fn validate(n: usize, edges: &[Edge]) -> Result<()> {
             });
         }
         if !e.cost.is_finite() {
-            // Keep it simple: non-finite costs are not supported in this operator.
-            return Err(Error::EdgeOutOfBounds {
+            return Err(Error::NonFiniteCost {
                 edge_idx: k,
-                from: e.from,
-                to: e.to,
-                n,
+                cost: e.cost,
             });
         }
     }
     Ok(())
-}
-
-/// Compute the soft shortest-path value \(V_\gamma\) from node 0 to node n-1.
-pub fn soft_shortest_path_value(n: usize, edges: &[Edge], gamma: f64) -> Result<f64> {
-    if gamma <= 0.0 || !gamma.is_finite() {
-        return Err(Error::InvalidGamma(gamma));
-    }
-    validate(n, edges)?;
-
-    let mut incoming: Vec<Vec<usize>> = vec![Vec::new(); n];
-    for (k, e) in edges.iter().enumerate() {
-        incoming[e.to].push(k);
-    }
-
-    let mut dp = vec![f64::INFINITY; n];
-    dp[0] = 0.0;
-    let mut scratch = Vec::new();
-    let mut cands = Vec::new();
-
-    for v in 1..n {
-        cands.clear();
-        for &ek in &incoming[v] {
-            let e = edges[ek];
-            let a = dp[e.from];
-            if a.is_finite() {
-                cands.push(a + e.cost);
-            }
-        }
-        if cands.is_empty() {
-            dp[v] = f64::INFINITY;
-        } else {
-            dp[v] = softmin_gamma(gamma, &cands, &mut scratch);
-        }
-    }
-
-    let v = dp[n - 1];
-    if !v.is_finite() {
-        return Err(Error::NoPath);
-    }
-    Ok(v)
 }
 
 /// Compute edge marginals \(p_e = \mathbb{P}_\gamma(e \in \pi)\) for paths from 0 to n-1.
@@ -270,10 +235,26 @@ mod tests {
         let a = 1.0 + 2.0;
         let b = 3.0 + 4.0;
         let edges = [
-            Edge { from: 0, to: 1, cost: 1.0 },
-            Edge { from: 1, to: 3, cost: 2.0 },
-            Edge { from: 0, to: 2, cost: 3.0 },
-            Edge { from: 2, to: 3, cost: 4.0 },
+            Edge {
+                from: 0,
+                to: 1,
+                cost: 1.0,
+            },
+            Edge {
+                from: 1,
+                to: 3,
+                cost: 2.0,
+            },
+            Edge {
+                from: 0,
+                to: 2,
+                cost: 3.0,
+            },
+            Edge {
+                from: 2,
+                to: 3,
+                cost: 4.0,
+            },
         ];
         let gamma = 0.5;
         let (v, p) = soft_shortest_path_edge_marginals(n, &edges, gamma).unwrap();
@@ -286,14 +267,39 @@ mod tests {
         let p_path_b = pb / z;
 
         // Edge marginals should equal path probabilities for edges on each path.
-        assert!((p[0] - p_path_a).abs() < 1e-9, "p0={} pa={}", p[0], p_path_a);
-        assert!((p[1] - p_path_a).abs() < 1e-9, "p1={} pa={}", p[1], p_path_a);
-        assert!((p[2] - p_path_b).abs() < 1e-9, "p2={} pb={}", p[2], p_path_b);
-        assert!((p[3] - p_path_b).abs() < 1e-9, "p3={} pb={}", p[3], p_path_b);
+        assert!(
+            (p[0] - p_path_a).abs() < 1e-9,
+            "p0={} pa={}",
+            p[0],
+            p_path_a
+        );
+        assert!(
+            (p[1] - p_path_a).abs() < 1e-9,
+            "p1={} pa={}",
+            p[1],
+            p_path_a
+        );
+        assert!(
+            (p[2] - p_path_b).abs() < 1e-9,
+            "p2={} pb={}",
+            p[2],
+            p_path_b
+        );
+        assert!(
+            (p[3] - p_path_b).abs() < 1e-9,
+            "p3={} pb={}",
+            p[3],
+            p_path_b
+        );
 
         // Value equals softmin over path costs.
         let v_expected = -gamma * (pa + pb).ln();
-        assert!((v - v_expected).abs() < 1e-9, "v={} v_expected={}", v, v_expected);
+        assert!(
+            (v - v_expected).abs() < 1e-9,
+            "v={} v_expected={}",
+            v,
+            v_expected
+        );
     }
 
     proptest! {
@@ -322,4 +328,3 @@ mod tests {
         }
     }
 }
-

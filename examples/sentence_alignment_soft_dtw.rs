@@ -8,7 +8,7 @@
 //! This example uses:
 //! - cheap char n-gram hashing to embed sentences into vectors
 //! - cosine distance to build a cost matrix
-//! - `structop::soft_dtw_cost` to compute Soft-DTW on that cost
+//! - `structops::soft_dtw_cost` to compute Soft-DTW on that cost
 
 use ndarray::Array1;
 
@@ -117,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let gamma = 0.5;
-    let sdtw = structop::soft_dtw::soft_dtw_cost(&cost, n, m, gamma)?;
+    let sdtw = structops::soft_dtw::soft_dtw_cost(&cost, n, m, gamma)?;
 
     println!("Soft-DTW value (gamma={gamma}): {sdtw:.6}");
     println!();
@@ -141,4 +141,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

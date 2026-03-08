@@ -31,7 +31,7 @@ fn main() {
     let mut best = (0isize, f64::INFINITY);
     for s in -8..=8 {
         let ys = shift_circular(&y, s);
-        let d = structop::soft_dtw::soft_dtw_divergence(&x, &ys, gamma).unwrap();
+        let d = structops::soft_dtw::soft_dtw_divergence(&x, &ys, gamma).unwrap();
         println!("{s:>5}  {d:.6}");
         if d < best.1 {
             best = (s, d);
@@ -40,4 +40,3 @@ fn main() {
     println!();
     println!("best_shift={}  best_div={:.6}", best.0, best.1);
 }
-

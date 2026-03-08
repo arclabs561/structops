@@ -31,6 +31,12 @@ pub enum Error {
     /// Inputs must be non-empty sequences.
     #[error("inputs must be non-empty")]
     EmptyInput,
+    /// Non-finite value in input sequence.
+    #[error("non-finite value in input at index {0}")]
+    NonFiniteInput(usize),
+    /// Non-finite cost in cost matrix.
+    #[error("non-finite cost at index {0}")]
+    NonFiniteCost(usize),
     /// Cost matrix shape mismatch.
     #[error("cost matrix has length {len}, expected {n}*{m}={expected}")]
     InvalidCostShape {
@@ -71,26 +77,25 @@ pub fn soft_dtw(x: &[f64], y: &[f64], gamma: f64) -> Result<f64> {
     if x.is_empty() || y.is_empty() {
         return Err(Error::EmptyInput);
     }
-
-    let n = x.len();
-    let m = y.len();
-
-    // DP table R has shape (n+1, m+1). We store row-major in a flat Vec.
-    // Indexing: r[i*(m+1) + j]
-    let w = m + 1;
-    let mut r = vec![f64::INFINITY; (n + 1) * (m + 1)];
-    r[0] = 0.0;
-
-    for i in 1..=n {
-        for j in 1..=m {
-            let d = (x[i - 1] - y[j - 1]).powi(2);
-            let a = r[(i - 1) * w + j];
-            let b = r[i * w + (j - 1)];
-            let c = r[(i - 1) * w + (j - 1)];
-            r[i * w + j] = d + softmin3(gamma, a, b, c);
+    for (i, &v) in x.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(Error::NonFiniteInput(i));
         }
     }
-    Ok(r[n * w + m])
+    for (i, &v) in y.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(Error::NonFiniteInput(i));
+        }
+    }
+    let n = x.len();
+    let m = y.len();
+    let mut cost = vec![0.0f64; n * m];
+    for i in 0..n {
+        for j in 0..m {
+            cost[i * m + j] = (x[i] - y[j]).powi(2);
+        }
+    }
+    soft_dtw_cost(&cost, n, m, gamma)
 }
 
 /// Soft-DTW value given a precomputed cost matrix `cost` (row-major).
@@ -114,6 +119,11 @@ pub fn soft_dtw_cost(cost: &[f64], n: usize, m: usize, gamma: f64) -> Result<f64
             m,
             expected: n * m,
         });
+    }
+    for (i, &c) in cost.iter().enumerate() {
+        if !c.is_finite() {
+            return Err(Error::NonFiniteCost(i));
+        }
     }
 
     let w = m + 1;
@@ -164,7 +174,6 @@ pub fn soft_dtw_divergence_cost(
 mod tests {
     use super::*;
     use proptest::prelude::*;
-    use std::f64;
 
     #[test]
     fn identical_sequences_have_zero_divergence() {
@@ -212,7 +221,12 @@ mod tests {
         let v_scalar = soft_dtw(&x, &y, gamma).unwrap();
         let v_cost = soft_dtw_cost(&cost_xy, n, m, gamma).unwrap();
 
-        assert!((v_scalar - v_cost).abs() < 1e-12, "scalar={} cost={}", v_scalar, v_cost);
+        assert!(
+            (v_scalar - v_cost).abs() < 1e-12,
+            "scalar={} cost={}",
+            v_scalar,
+            v_cost
+        );
     }
 
     fn dtw_squared(x: &[f64], y: &[f64]) -> f64 {
@@ -248,7 +262,12 @@ mod tests {
         let s = soft_dtw(&x, &y, gamma).unwrap();
 
         let slack = ((x.len() + y.len()) as f64) * gamma * 3.0_f64.ln();
-        assert!(s <= dtw + 1e-12, "expected soft_dtw <= dtw (s={} dtw={})", s, dtw);
+        assert!(
+            s <= dtw + 1e-12,
+            "expected soft_dtw <= dtw (s={} dtw={})",
+            s,
+            dtw
+        );
         assert!(
             dtw - s <= slack + 1e-9,
             "expected dtw - soft_dtw <= O((n+m)γln3): dtw={} s={} slack={}",
@@ -270,7 +289,11 @@ mod tests {
 
         let xx = soft_dtw(&x, &x, gamma).unwrap();
         assert!(xx.is_finite());
-        assert!(xx < 0.0, "expected soft_dtw(x,x,gamma) < 0 for large gamma, got {}", xx);
+        assert!(
+            xx < 0.0,
+            "expected soft_dtw(x,x,gamma) < 0 for large gamma, got {}",
+            xx
+        );
 
         let d = soft_dtw_divergence(&x, &x, gamma).unwrap();
         assert!(d.abs() < 1e-10, "expected divergence(x,x)=0, got {}", d);
@@ -308,4 +331,3 @@ mod tests {
         );
     }
 }
-
