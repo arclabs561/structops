@@ -320,7 +320,7 @@ mod tests {
             ];
             let (_v, p) = soft_shortest_path_edge_marginals(n, &edges, gamma).unwrap();
             for &pe in &p {
-                prop_assert!(pe >= -1e-12 && pe <= 1.0 + 1e-12);
+                prop_assert!((-1e-12..=1.0 + 1e-12).contains(&pe));
             }
             // Outgoing from source should sum to 1 on this graph.
             let s = p[0] + p[2];
