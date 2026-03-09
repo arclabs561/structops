@@ -15,6 +15,7 @@ publish = false
 thiserror = "2.0"
 
 [dev-dependencies]
+graphops = "0.1"
 ndarray = "0.16"
 proptest = "1.9"
 
