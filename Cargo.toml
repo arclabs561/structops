@@ -9,7 +9,7 @@ repository = "https://github.com/arclabs561/structops"
 homepage = "https://github.com/arclabs561/structops"
 description = "Structured operators: differentiable DP relaxations (Soft-DTW, soft shortest path)."
 readme = "README.md"
-publish = false
+publish = true
 
 [dependencies]
 thiserror = "2.0"
