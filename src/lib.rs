@@ -8,5 +8,6 @@
 //! - Numeric code is deterministic (no RNG in core ops).
 //! - Parameters that control smoothing (e.g. \(\gamma\)) are explicit and validated.
 
+pub mod control;
 pub mod soft_dtw;
 pub mod soft_shortest_path;
