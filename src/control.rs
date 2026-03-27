@@ -15,14 +15,30 @@
 /// Soft less-than: `sigmoid(beta * (b - a))`.
 ///
 /// Approaches 1 when `a < b`, 0 when `a > b`.  `beta` controls sharpness.
+///
+/// # Panics
+///
+/// Debug-panics if `beta` is not positive and finite.
 pub fn soft_lt(a: f32, b: f32, beta: f32) -> f32 {
+    debug_assert!(
+        beta.is_finite() && beta > 0.0,
+        "beta must be finite and > 0"
+    );
     sigmoid(beta * (b - a))
 }
 
 /// Soft greater-than: `sigmoid(beta * (a - b))`.
 ///
 /// Complement of [`soft_lt`]: `soft_gt(a, b, beta) == soft_lt(b, a, beta)`.
+///
+/// # Panics
+///
+/// Debug-panics if `beta` is not positive and finite.
 pub fn soft_gt(a: f32, b: f32, beta: f32) -> f32 {
+    debug_assert!(
+        beta.is_finite() && beta > 0.0,
+        "beta must be finite and > 0"
+    );
     sigmoid(beta * (a - b))
 }
 
@@ -30,7 +46,15 @@ pub fn soft_gt(a: f32, b: f32, beta: f32) -> f32 {
 ///
 /// Peaks at 1 when `a == b`, decays as a Gaussian with width controlled by
 /// `beta`.  Symmetric: `soft_eq(a, b, beta) == soft_eq(b, a, beta)`.
+///
+/// # Panics
+///
+/// Debug-panics if `beta` is not positive and finite.
 pub fn soft_eq(a: f32, b: f32, beta: f32) -> f32 {
+    debug_assert!(
+        beta.is_finite() && beta > 0.0,
+        "beta must be finite and > 0"
+    );
     (-beta * (a - b).powi(2)).exp()
 }
 
@@ -58,6 +82,10 @@ pub fn soft_if(condition: f32, then_val: &[f32], else_val: &[f32], temperature: 
         else_val.len(),
         "then_val and else_val must have the same length"
     );
+    debug_assert!(
+        temperature.is_finite() && temperature > 0.0,
+        "temperature must be finite and > 0"
+    );
     let w = sigmoid(condition / temperature);
     then_val
         .iter()
@@ -70,6 +98,10 @@ pub fn soft_if(condition: f32, then_val: &[f32], else_val: &[f32], temperature: 
 ///
 /// `sigmoid(condition / temperature) * then_val + (1 - sigmoid(condition / temperature)) * else_val`
 pub fn soft_if_scalar(condition: f32, then_val: f32, else_val: f32, temperature: f32) -> f32 {
+    debug_assert!(
+        temperature.is_finite() && temperature > 0.0,
+        "temperature must be finite and > 0"
+    );
     let w = sigmoid(condition / temperature);
     w * then_val + (1.0 - w) * else_val
 }
@@ -88,13 +120,7 @@ pub fn soft_if_scalar(condition: f32, then_val: f32, else_val: f32, temperature:
 /// After `max_iter` steps the accumulated state is returned.  The blending
 /// ensures that once the condition drifts toward 0 the state "freezes,"
 /// approximating a hard while loop's early exit.
-pub fn soft_while<F, C>(
-    init: &[f32],
-    body: F,
-    condition: C,
-    max_iter: usize,
-    _temperature: f32,
-) -> Vec<f32>
+pub fn soft_while<F, C>(init: &[f32], body: F, condition: C, max_iter: usize) -> Vec<f32>
 where
     F: Fn(&[f32]) -> Vec<f32>,
     C: Fn(&[f32]) -> f32,
@@ -227,7 +253,6 @@ mod tests {
             |s| s.iter().map(|x| x + 1.0).collect(), // body that increments
             |_| 0.0,                                 // never continue
             100,
-            1.0,
         );
         for (r, &i) in result.iter().zip(init.iter()) {
             assert!(
@@ -244,13 +269,7 @@ mod tests {
         // body: state *= 0.5 (contraction). condition always 1.0.
         // Fixed point is [0, 0, 0].
         let init = vec![8.0, 4.0, 2.0];
-        let result = soft_while(
-            &init,
-            |s| s.iter().map(|x| x * 0.5).collect(),
-            |_| 1.0,
-            200,
-            1.0,
-        );
+        let result = soft_while(&init, |s| s.iter().map(|x| x * 0.5).collect(), |_| 1.0, 200);
         for &r in &result {
             assert!(r.abs() < 1e-6, "expected convergence to 0, got {}", r);
         }
