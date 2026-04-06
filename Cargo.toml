@@ -11,6 +11,8 @@ description = "Structured operators: differentiable DP relaxations (Soft-DTW, so
 readme = "README.md"
 publish = true
 
+[workspace]
+
 [dependencies]
 thiserror = "2.0"
 
