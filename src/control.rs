@@ -157,8 +157,7 @@ where
 {
     assert_eq!(weights.len(), n, "weights.len() must equal n");
     let mut state = init.to_vec();
-    for i in 0..n {
-        let w = weights[i];
+    for (i, &w) in weights.iter().enumerate() {
         let next = body(&state, i);
         for (s, &nv) in state.iter_mut().zip(next.iter()) {
             *s = w * nv + (1.0 - w) * *s;
