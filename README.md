@@ -9,7 +9,7 @@ dynamic programming relaxations, structured attention, and structured inference 
 
 ```toml
 [dependencies]
-structops = "0.1.0"
+structops = "0.2"
 ```
 
 ## What’s here
