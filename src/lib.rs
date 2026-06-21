@@ -1,7 +1,7 @@
 //! Differentiable operators for discrete structure.
 //!
-//! This crate is intended to hold “structured operators” that show up across the stack:
-//! dynamic programming relaxations, structured attention, and sparse structured inference.
+//! This crate provides dynamic programming relaxations, structured attention,
+//! and sparse structured inference.
 //!
 //! Public invariants (must not change):
 //! - APIs are backend-agnostic (slice-based, `Vec<f64>` outputs).

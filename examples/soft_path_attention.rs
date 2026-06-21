@@ -1,4 +1,4 @@
-//! End-to-end example: “DP = attention” on a tiny DAG.
+//! Soft shortest-path edge marginals on a tiny DAG.
 //!
 //! The `soft_shortest_path_edge_marginals` function returns edge marginals under a
 //! Gibbs distribution over paths. These marginals are exactly the gradients of the
@@ -10,7 +10,7 @@ fn main() {
     // A tiny DAG with two alternative paths from 0 to 3:
     // 0->1->3 (cheap) and 0->2->3 (expensive).
     //
-    // The edge marginals returned by the DP are exactly the “soft attention”
+    // The edge marginals returned by the DP are exactly the soft attention
     // weights over edges induced by a Gibbs distribution over paths.
     let edges = [
         Edge {

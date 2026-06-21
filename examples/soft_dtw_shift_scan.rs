@@ -1,7 +1,8 @@
 //! Relatable demo: find the best shift between two sequences with Soft-DTW.
 //!
-//! We create a base signal `x`, then a shifted copy `y`. We scan integer shifts and
-//! compute Soft-DTW divergence; the minimum should occur near the true shift.
+//! We create a base signal `x`, then a shifted copy `y`. We scan integer shifts
+//! applied to `y` and compute Soft-DTW divergence; the minimum should occur near
+//! the inverse of the original shift.
 
 fn shift_circular(seq: &[f64], shift: isize) -> Vec<f64> {
     let n = seq.len() as isize;
@@ -25,7 +26,7 @@ fn main() {
     let y = shift_circular(&x, true_shift);
 
     let gamma = 0.5;
-    println!("gamma={gamma}  true_shift={true_shift}");
+    println!("gamma={gamma}  original_shift={true_shift}");
     println!("shift  soft_dtw_divergence");
 
     let mut best = (0isize, f64::INFINITY);
@@ -38,5 +39,5 @@ fn main() {
         }
     }
     println!();
-    println!("best_shift={}  best_div={:.6}", best.0, best.1);
+    println!("best_inverse_shift={}  best_div={:.6}", best.0, best.1);
 }

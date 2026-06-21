@@ -1,11 +1,11 @@
-//! User Journey Alignment Demo (Soft-DTW)
+//! User journey alignment with Soft-DTW.
 //!
-//! Demonstrates using Soft-DTW to align noisy user sessions to a canonical "Golden Path".
+//! Demonstrates using Soft-DTW to align noisy user sessions to a canonical path.
 //!
 //! # The Scenario
 //!
-//! - **Golden Path**: `Landing -> Pricing -> Sign Up`
-//! - **User A (Focused)**: `Landing -> Pricing -> Sign Up` (Perfect)
+//! - **Canonical path**: `Landing -> Pricing -> Sign Up`
+//! - **User A (Focused)**: `Landing -> Pricing -> Sign Up` (exact)
 //! - **User B (Lost)**: `Landing -> Blog -> Pricing -> Blog -> Pricing -> Sign Up` (Noisy)
 //! - **User C (Bounce)**: `Landing -> Blog -> Exit` (Incomplete)
 //!
@@ -42,7 +42,7 @@ impl State {
 fn state_cost(a: State, b: State) -> f64 {
     // A tiny, explicit metric over categorical states.
     // Equal states have 0 cost; mismatches have 1 cost, except "Exit" which is
-    // “far” from everything else (we don't want exiting to look like a mild detour).
+    // far from everything else (we do not want exiting to look like a mild detour).
     if a == b {
         return 0.0;
     }
@@ -94,16 +94,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let gamma = 1.0;
 
-    println!("User Journey Alignment (Soft-DTW, gamma={})", gamma);
+    println!("User journey alignment (Soft-DTW, gamma={})", gamma);
     println!("Note: Using an explicit categorical cost (0=same, 1=mismatch, 2=Exit mismatch).");
     println!();
 
-    print_seq("Golden Path", &golden_path);
+    print_seq("Canonical path", &golden_path);
     println!();
 
     let score_a = sdtw_divergence_states(&golden_path, &user_a, gamma);
     print_seq("User A (Ideal)", &user_a);
-    println!("   Score: {:.4} (Perfect match)", score_a);
+    println!("   Score: {:.4} (exact match)", score_a);
 
     let score_b = sdtw_divergence_states(&golden_path, &user_b, gamma);
     print_seq("User B (Noisy)", &user_b);

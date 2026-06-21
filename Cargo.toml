@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 authors = ["Arc <attobop@gmail.com>"]
 repository = "https://github.com/arclabs561/structops"
 homepage = "https://github.com/arclabs561/structops"
-description = "Structured operators: differentiable DP relaxations (Soft-DTW, soft shortest path)."
+description = "Differentiable operators for discrete structure"
 readme = "README.md"
 publish = true
 
@@ -20,4 +20,3 @@ thiserror = "2.0"
 graphops = "0.4"
 ndarray = "0.16"
 proptest = "1.9"
-
