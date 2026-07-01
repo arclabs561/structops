@@ -60,25 +60,11 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
 
 ## Examples
 
-```bash
-# soft shortest path = DP attention on a tiny DAG
-cargo run --example soft_path_attention
-
-# Soft-DTW used for ordered (sequence-aware) sentence alignment
-cargo run --example sentence_alignment_soft_dtw
-
-# Soft-DTW for shift detection (sanity check / visualization)
-cargo run --example soft_dtw_shift_scan
-
-# User journey alignment to a canonical path
-cargo run --example user_journey_alignment
-
-# soft shortest path over a graph built with graphops
-cargo run --example soft_path_on_graph
-```
+See [examples/README.md](examples/README.md) for runnable examples with
+captured output.
 
 ## References
 
-- M. Cuturi, M. Blondel. “Soft-DTW: a Differentiable Loss Function for Time-Series.” ICML 2017.
-- A. Mensch, M. Blondel. “Differentiable Dynamic Programming for Structured Prediction and Attention.” ICML 2018.
-- F. Petersen, C. Borgelt, H. Kuehne, O. Deussen. “Learning with Algorithmic Supervision via Continuous Relaxations.” NeurIPS 2021.
+- M. Cuturi, M. Blondel. "Soft-DTW: a Differentiable Loss Function for Time-Series." ICML 2017.
+- A. Mensch, M. Blondel. "Differentiable Dynamic Programming for Structured Prediction and Attention." ICML 2018.
+- F. Petersen, C. Borgelt, H. Kuehne, O. Deussen. "Learning with Algorithmic Supervision via Continuous Relaxations." NeurIPS 2021.
