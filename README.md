@@ -68,3 +68,8 @@ captured output.
 - M. Cuturi, M. Blondel. "Soft-DTW: a Differentiable Loss Function for Time-Series." ICML 2017.
 - A. Mensch, M. Blondel. "Differentiable Dynamic Programming for Structured Prediction and Attention." ICML 2018.
 - F. Petersen, C. Borgelt, H. Kuehne, O. Deussen. "Learning with Algorithmic Supervision via Continuous Relaxations." NeurIPS 2021.
+
+## License
+
+Licensed under either the [Apache License, Version 2.0](LICENSE-APACHE) or
+the [MIT license](LICENSE-MIT), at your option.
