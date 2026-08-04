@@ -15,8 +15,11 @@ repository:
   delete_branch_on_merge: true
 
   topics:
+    - attention
     - differentiable-programming
     - dynamic-programming
     - machine-learning
     - rust
+    - shortest-path
+    - soft-dtw
     - structured-prediction
