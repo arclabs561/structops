@@ -18,12 +18,9 @@
 ///
 /// # Panics
 ///
-/// Debug-panics if `beta` is not positive and finite.
+/// Panics if `beta` is not positive and finite.
 pub fn soft_lt(a: f32, b: f32, beta: f32) -> f32 {
-    debug_assert!(
-        beta.is_finite() && beta > 0.0,
-        "beta must be finite and > 0"
-    );
+    assert_positive_finite(beta, "beta");
     sigmoid(beta * (b - a))
 }
 
@@ -33,12 +30,9 @@ pub fn soft_lt(a: f32, b: f32, beta: f32) -> f32 {
 ///
 /// # Panics
 ///
-/// Debug-panics if `beta` is not positive and finite.
+/// Panics if `beta` is not positive and finite.
 pub fn soft_gt(a: f32, b: f32, beta: f32) -> f32 {
-    debug_assert!(
-        beta.is_finite() && beta > 0.0,
-        "beta must be finite and > 0"
-    );
+    assert_positive_finite(beta, "beta");
     sigmoid(beta * (a - b))
 }
 
@@ -49,12 +43,9 @@ pub fn soft_gt(a: f32, b: f32, beta: f32) -> f32 {
 ///
 /// # Panics
 ///
-/// Debug-panics if `beta` is not positive and finite.
+/// Panics if `beta` is not positive and finite.
 pub fn soft_eq(a: f32, b: f32, beta: f32) -> f32 {
-    debug_assert!(
-        beta.is_finite() && beta > 0.0,
-        "beta must be finite and > 0"
-    );
+    assert_positive_finite(beta, "beta");
     (-beta * (a - b).powi(2)).exp()
 }
 
@@ -75,17 +66,15 @@ pub fn soft_eq(a: f32, b: f32, beta: f32) -> f32 {
 ///
 /// # Panics
 ///
-/// Panics if `then_val.len() != else_val.len()`.
+/// Panics if `then_val.len() != else_val.len()` or `temperature` is not
+/// positive and finite.
 pub fn soft_if(condition: f32, then_val: &[f32], else_val: &[f32], temperature: f32) -> Vec<f32> {
     assert_eq!(
         then_val.len(),
         else_val.len(),
         "then_val and else_val must have the same length"
     );
-    debug_assert!(
-        temperature.is_finite() && temperature > 0.0,
-        "temperature must be finite and > 0"
-    );
+    assert_positive_finite(temperature, "temperature");
     let w = sigmoid(condition / temperature);
     then_val
         .iter()
@@ -97,11 +86,12 @@ pub fn soft_if(condition: f32, then_val: &[f32], else_val: &[f32], temperature: 
 /// Soft conditional for scalars.
 ///
 /// `sigmoid(condition / temperature) * then_val + (1 - sigmoid(condition / temperature)) * else_val`
+///
+/// # Panics
+///
+/// Panics if `temperature` is not positive and finite.
 pub fn soft_if_scalar(condition: f32, then_val: f32, else_val: f32, temperature: f32) -> f32 {
-    debug_assert!(
-        temperature.is_finite() && temperature > 0.0,
-        "temperature must be finite and > 0"
-    );
+    assert_positive_finite(temperature, "temperature");
     let w = sigmoid(condition / temperature);
     w * then_val + (1.0 - w) * else_val
 }
@@ -174,6 +164,13 @@ fn sigmoid(x: f32) -> f32 {
     1.0 / (1.0 + (-x).exp())
 }
 
+fn assert_positive_finite(value: f32, name: &str) {
+    assert!(
+        value.is_finite() && value > 0.0,
+        "{name} must be finite and > 0"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -182,6 +179,87 @@ fn sigmoid(x: f32) -> f32 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    fn central_difference(mut f: impl FnMut(f32) -> f32, x: f32) -> f32 {
+        let h = 1e-3;
+        (f(x + h) - f(x - h)) / (2.0 * h)
+    }
+
+    #[test]
+    fn invalid_smoothing_parameters_always_panic() {
+        for invalid in [0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(std::panic::catch_unwind(|| soft_lt(0.0, 1.0, invalid)).is_err());
+            assert!(std::panic::catch_unwind(|| soft_gt(0.0, 1.0, invalid)).is_err());
+            assert!(std::panic::catch_unwind(|| soft_eq(0.0, 1.0, invalid)).is_err());
+            assert!(std::panic::catch_unwind(|| soft_if(1.0, &[1.0], &[0.0], invalid)).is_err());
+            assert!(std::panic::catch_unwind(|| soft_if_scalar(1.0, 1.0, 0.0, invalid)).is_err());
+        }
+    }
+
+    #[test]
+    fn soft_comparisons_match_closed_forms() {
+        let (a, b, beta) = (1.25f32, 2.75f32, 0.7f32);
+        let logistic = 1.0 / (1.0 + (-beta * (b - a)).exp());
+        assert!((soft_lt(a, b, beta) - logistic).abs() < 1e-7);
+        assert!((soft_gt(a, b, beta) - (1.0 - logistic)).abs() < 1e-7);
+
+        let gaussian = (-beta * (a - b).powi(2)).exp();
+        assert!((soft_eq(a, b, beta) - gaussian).abs() < 1e-7);
+    }
+
+    #[test]
+    fn soft_if_matches_two_way_softmax_and_temperature_limits() {
+        let condition = 0.8f32;
+        let temperature = 0.4f32;
+        let then_val = 7.0f32;
+        let else_val = -2.0f32;
+        let then_logit = condition / temperature;
+        let max_logit = then_logit.max(0.0);
+        let then_exp = (then_logit - max_logit).exp();
+        let else_exp = (-max_logit).exp();
+        let weight = then_exp / (then_exp + else_exp);
+        let expected = weight * then_val + (1.0 - weight) * else_val;
+        assert!(
+            (soft_if_scalar(condition, then_val, else_val, temperature) - expected).abs() < 1e-6
+        );
+
+        let midpoint = soft_if_scalar(condition, then_val, else_val, 1e8);
+        assert!((midpoint - (then_val + else_val) * 0.5).abs() < 1e-5);
+        assert!((soft_if_scalar(condition, then_val, else_val, 1e-6) - then_val).abs() < 1e-6);
+        assert!((soft_if_scalar(-condition, then_val, else_val, 1e-6) - else_val).abs() < 1e-6);
+    }
+
+    #[test]
+    fn soft_operator_gradients_match_finite_differences() {
+        let (a, b, beta) = (0.3f32, 1.1f32, 0.8f32);
+        let lt = soft_lt(a, b, beta);
+        let expected_da = -beta * lt * (1.0 - lt);
+        let actual_da = central_difference(|x| soft_lt(x, b, beta), a);
+        assert!(
+            (actual_da - expected_da).abs() < 1e-4,
+            "soft_lt derivative: finite_difference={actual_da}, analytic={expected_da}"
+        );
+
+        let eq = soft_eq(a, b, beta);
+        let expected_eq_da = -2.0 * beta * (a - b) * eq;
+        let actual_eq_da = central_difference(|x| soft_eq(x, b, beta), a);
+        assert!(
+            (actual_eq_da - expected_eq_da).abs() < 1e-4,
+            "soft_eq derivative: finite_difference={actual_eq_da}, analytic={expected_eq_da}"
+        );
+
+        let (condition, then_val, else_val, temperature) = (0.2f32, 3.0f32, -1.0f32, 0.9f32);
+        let weight = 1.0 / (1.0 + (-condition / temperature).exp());
+        let expected_condition = (then_val - else_val) * weight * (1.0 - weight) / temperature;
+        let actual_condition = central_difference(
+            |x| soft_if_scalar(x, then_val, else_val, temperature),
+            condition,
+        );
+        assert!(
+            (actual_condition - expected_condition).abs() < 1e-4,
+            "soft_if derivative: finite_difference={actual_condition}, analytic={expected_condition}"
+        );
+    }
 
     // -- soft_if -----------------------------------------------------------
 
