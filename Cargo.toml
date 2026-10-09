@@ -9,6 +9,7 @@ repository = "https://github.com/arclabs561/structops"
 homepage = "https://github.com/arclabs561/structops"
 description = "Differentiable operators for discrete structure"
 readme = "README.md"
+include = ["/src", "/examples", "/README.md", "/CHANGELOG.md", "/LICENSE*"]
 publish = true
 
 [workspace]
