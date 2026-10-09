@@ -302,6 +302,66 @@ mod tests {
         );
     }
 
+    #[test]
+    fn edge_marginals_equal_finite_difference_gradient_of_value() {
+        // A DAG with shared edges and paths of different lengths.
+        let edges = vec![
+            Edge {
+                from: 0,
+                to: 1,
+                cost: 0.7,
+            },
+            Edge {
+                from: 0,
+                to: 2,
+                cost: 1.3,
+            },
+            Edge {
+                from: 1,
+                to: 2,
+                cost: 0.2,
+            },
+            Edge {
+                from: 1,
+                to: 3,
+                cost: 1.1,
+            },
+            Edge {
+                from: 2,
+                to: 3,
+                cost: 0.4,
+            },
+            Edge {
+                from: 2,
+                to: 4,
+                cost: 2.0,
+            },
+            Edge {
+                from: 3,
+                to: 4,
+                cost: 0.5,
+            },
+        ];
+        let (n, gamma, h) = (5, 0.6, 1e-6);
+        let (_, p) = soft_shortest_path_edge_marginals(n, &edges, gamma).unwrap();
+        for k in 0..edges.len() {
+            let value_at = |cost: f64| {
+                let mut perturbed = edges.clone();
+                perturbed[k].cost = cost;
+                soft_shortest_path_edge_marginals(n, &perturbed, gamma)
+                    .unwrap()
+                    .0
+            };
+            let c = edges[k].cost;
+            let fd = (value_at(c + h) - value_at(c - h)) / (2.0 * h);
+            assert!(
+                (p[k] - fd).abs() < 1e-6,
+                "edge {k}: marginal {} vs fd {fd}",
+                p[k]
+            );
+        }
+    }
+
     proptest! {
         #[test]
         fn edge_marginals_are_probabilities_on_diamond(

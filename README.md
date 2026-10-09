@@ -9,8 +9,12 @@ backpropagation through any model that needs to align two sequences, route over
 a graph, or branch on a learned condition. Each operator replaces the hard
 operation with a temperature- or smoothing-parameterized version: it recovers
 the discrete semantics in the zero-temperature limit and is differentiable
-everywhere else, so the surrounding model can be trained end to end. Inputs and
-outputs are plain slices and `Vec`, so the operators drop into any backend.
+everywhere else. Soft-DTW and soft shortest path return their gradients
+(`soft_dtw_cost_grad`, `soft_dtw_grad`, `soft_dtw_divergence_grad`,
+`soft_shortest_path_edge_marginals`); the `control` operators are closed-form
+sigmoid expressions with no gradient helpers, so differentiate them in your own
+autodiff. Inputs and outputs are plain slices and `Vec`, so the operators drop
+into any backend.
 
 ## Quickstart
 
@@ -40,9 +44,11 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
 ## What's here
 
 - `soft_dtw`: Soft-DTW (Cuturi & Blondel 2017) and the debiased Soft-DTW
-  divergence. `soft_dtw` / `soft_dtw_cost` for the value, `soft_dtw_divergence`
-  / `soft_dtw_divergence_cost` for the nonnegative, self-zeroing variant. Use it
-  to score how well two sequences align.
+  divergence (Blondel, Mensch & Vert 2021). `soft_dtw` / `soft_dtw_cost` for the
+  value, `soft_dtw_divergence` / `soft_dtw_divergence_cost` for the nonnegative,
+  self-zeroing variant, and `soft_dtw_cost_grad` / `soft_dtw_grad` /
+  `soft_dtw_divergence_grad` for value plus gradient (Cuturi & Blondel's
+  backward recursion). Use it to score how well two sequences align.
 - `soft_shortest_path`: soft shortest path on a DAG (Mensch & Blondel 2018
   framing). `soft_shortest_path_edge_marginals` returns the value and the
   per-edge marginals; those marginals are the gradient w.r.t. edge cost, i.e. a
@@ -54,7 +60,7 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
 
 ## Public invariants (must not change)
 
-- **Backend-agnostic core**: slice-based APIs and `Vec<f64>` internals (no tensor backend types in public APIs).
+- **Backend-agnostic core**: slice-based APIs (no tensor backend types in public APIs). `soft_dtw` and `soft_shortest_path` use `f64`; `control` uses `f32`.
 - **Determinism**: no RNG in core operators.
 - **Explicit smoothing parameters**: e.g. $\gamma$ must be passed and validated.
 
@@ -66,6 +72,7 @@ captured output.
 ## References
 
 - M. Cuturi, M. Blondel. "Soft-DTW: a Differentiable Loss Function for Time-Series." ICML 2017.
+- M. Blondel, A. Mensch, J.-P. Vert. "Differentiable Divergences Between Time Series." AISTATS 2021.
 - A. Mensch, M. Blondel. "Differentiable Dynamic Programming for Structured Prediction and Attention." ICML 2018.
 - F. Petersen, C. Borgelt, H. Kuehne, O. Deussen. "Learning with Algorithmic Supervision via Continuous Relaxations." NeurIPS 2021.
 

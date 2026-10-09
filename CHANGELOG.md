@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `soft_dtw_cost_grad`, `soft_dtw_grad` and `soft_dtw_divergence_grad`: Soft-DTW
+  value plus gradient via the backward recursion of Cuturi & Blondel (2017).
+
+### Fixed
+
+- Attribute the Soft-DTW divergence to Blondel, Mensch & Vert (2021).
+- README no longer claims end-to-end training for operators without
+  gradients, and states that `control` uses `f32`.
+
 ## [0.2.0] - 2026-06-11
 
 ### Added
