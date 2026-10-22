@@ -20,10 +20,10 @@
 //! - The **Soft-DTW divergence** (Blondel, Mensch & Vert 2021, "Differentiable
 //!   Divergences Between Time Series", AISTATS) is a debiased substitute:
 //!   \(\operatorname{sdtw}_\gamma(x,y)-\tfrac12\operatorname{sdtw}_\gamma(x,x)-\tfrac12\operatorname{sdtw}_\gamma(y,y)\).
-//!   This is typically nonnegative and is zero on identical inputs (under the
-//!   usual squared-distance setting).
-//! - Gradients: [`soft_dtw_cost_grad`] runs the backward recursion of Cuturi &
-//!   Blondel (2017, Algorithm 2); [`soft_dtw_grad`] and
+//!   Self-comparison cancels in exact arithmetic. Nonnegativity depends on
+//!   the ground cost; it is not guaranteed for arbitrary precomputed matrices.
+//! - Gradients: [`soft_dtw_cost_grad`] computes the expected alignment of Cuturi &
+//!   Blondel (2017) by reverse accumulation; [`soft_dtw_grad`] and
 //!   [`soft_dtw_divergence_grad`] chain it through squared scalar distance.
 
 /// Errors for Soft-DTW operators.
@@ -58,19 +58,66 @@ pub enum Error {
 /// Convenience result type for this module.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn softmin3(gamma: f64, a: f64, b: f64, c: f64) -> f64 {
-    // log-sum-exp stabilization: compute
-    // -γ log(exp(-a/γ)+exp(-b/γ)+exp(-c/γ))
-    let xa = -a / gamma;
-    let xb = -b / gamma;
-    let xc = -c / gamma;
-    let m = xa.max(xb).max(xc);
-    if !m.is_finite() {
-        // If all are +∞ in original space, return +∞.
-        return f64::INFINITY;
+// Keep the hard-path cost and the dimensionless partition residual separate:
+// Z = exp(-baseline / gamma) * exp(log_mass). Folding log_mass into the
+// baseline would lose path multiplicities at large offsets or tiny gamma.
+#[derive(Clone, Copy)]
+struct Partition {
+    baseline: f64,
+    log_mass: f64,
+}
+
+fn forward(cost: &[f64], n: usize, m: usize, gamma: f64) -> (f64, Vec<[f64; 3]>) {
+    let w = m + 1;
+    let mut states = vec![None; (n + 1) * w];
+    states[0] = Some(Partition {
+        baseline: 0.0,
+        log_mass: 0.0,
+    });
+    let mut weights = vec![[0.0; 3]; n * m];
+    for i in 1..=n {
+        for j in 1..=m {
+            let predecessors = [
+                states[(i - 1) * w + j],
+                states[i * w + j - 1],
+                states[(i - 1) * w + j - 1],
+            ];
+            let baseline = predecessors
+                .iter()
+                .flatten()
+                .map(|p| p.baseline)
+                .fold(f64::INFINITY, f64::min);
+            let logits = predecessors.map(|p| match p {
+                Some(p) => {
+                    let difference = p.baseline - baseline;
+                    // Opposite-sign finite costs can overflow on subtraction
+                    // even when their temperature-scaled difference is finite.
+                    // Dividing first is safe here: the quotients have opposite
+                    // signs, so this fallback cannot introduce inf - inf.
+                    let scaled = if difference.is_infinite()
+                        && p.baseline.is_finite()
+                        && baseline.is_finite()
+                    {
+                        p.baseline / gamma - baseline / gamma
+                    } else {
+                        difference / gamma
+                    };
+                    p.log_mass - scaled
+                }
+                None => f64::NEG_INFINITY,
+            });
+            let max = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let numerators = logits.map(|x| (x - max).exp());
+            let sum: f64 = numerators.iter().sum();
+            weights[(i - 1) * m + j - 1] = numerators.map(|x| x / sum);
+            states[i * w + j] = Some(Partition {
+                baseline: baseline + cost[(i - 1) * m + j - 1],
+                log_mass: max + sum.ln(),
+            });
+        }
     }
-    let s = (xa - m).exp() + (xb - m).exp() + (xc - m).exp();
-    -gamma * (m + s.ln())
+    let last = states[n * w + m].unwrap();
+    (last.baseline - gamma * last.log_mass, weights)
 }
 
 /// Soft-DTW value for two 1D sequences.
@@ -109,7 +156,17 @@ pub fn soft_dtw(x: &[f64], y: &[f64], gamma: f64) -> Result<f64> {
 ///
 /// `cost` must have length `n * m`, storing `cost[i*m + j] = d(x_i, y_j)` for
 /// 0-based indices `i in 0..n`, `j in 0..m`.
+///
+/// Partition residuals are retained separately to preserve path multiplicities
+/// when a large common cost or tiny temperature rounds away the entropy term.
+/// Accumulated hard-path costs still use `f64`: their rounding and overflow can
+/// limit accuracy even when every individual input cost is finite.
 pub fn soft_dtw_cost(cost: &[f64], n: usize, m: usize, gamma: f64) -> Result<f64> {
+    validate_cost(cost, n, m, gamma)?;
+    Ok(forward(cost, n, m, gamma).0)
+}
+
+fn validate_cost(cost: &[f64], n: usize, m: usize, gamma: f64) -> Result<()> {
     if gamma <= 0.0 || !gamma.is_finite() {
         return Err(Error::InvalidGamma(gamma));
     }
@@ -130,87 +187,39 @@ pub fn soft_dtw_cost(cost: &[f64], n: usize, m: usize, gamma: f64) -> Result<f64
         }
     }
 
-    let w = m + 1;
-    let mut r = vec![f64::INFINITY; (n + 1) * (m + 1)];
-    r[0] = 0.0;
-
-    for i in 1..=n {
-        for j in 1..=m {
-            let d = cost[(i - 1) * m + (j - 1)];
-            let a = r[(i - 1) * w + j];
-            let b = r[i * w + (j - 1)];
-            let c = r[(i - 1) * w + (j - 1)];
-            r[i * w + j] = d + softmin3(gamma, a, b, c);
-        }
-    }
-    Ok(r[n * w + m])
+    Ok(())
 }
 
 /// Soft-DTW value and its gradient with respect to the cost matrix.
 ///
 /// Returns `(value, e)` where `e[i*m + j]` is \(\partial R_{n,m} / \partial
 /// \text{cost}_{i,j}\): the expected alignment matrix of Cuturi & Blondel
-/// (2017), computed by their backward recursion (Algorithm 2). Each entry is in
-/// `[0, 1]`; as \(\gamma \to 0\) it approaches the hard DTW alignment.
+/// (2017), computed by reverse accumulation of local Gibbs probabilities. Each entry is in
+/// `[0, 1]`; as \(\gamma \to 0\) it approaches the average alignment over
+/// all minimum-cost paths (the hard DTW alignment when that path is unique).
 ///
 /// Chain `e` through your own distance to get gradients with respect to the
 /// sequence elements; [`soft_dtw_grad`] does this for squared scalar distance.
 pub fn soft_dtw_cost_grad(cost: &[f64], n: usize, m: usize, gamma: f64) -> Result<(f64, Vec<f64>)> {
     // Validates inputs exactly as the forward pass does.
-    soft_dtw_cost(cost, n, m, gamma)?;
+    validate_cost(cost, n, m, gamma)?;
 
-    // Forward pass on an (n+2) x (m+2) grid; row/column n+1 and m+1 are the
-    // padding the backward recursion reads.
-    let w = m + 2;
-    let mut r = vec![f64::INFINITY; (n + 2) * w];
-    r[0] = 0.0;
-    for i in 1..=n {
-        for j in 1..=m {
-            let d = cost[(i - 1) * m + (j - 1)];
-            r[i * w + j] = d + softmin3(
-                gamma,
-                r[(i - 1) * w + j],
-                r[i * w + (j - 1)],
-                r[(i - 1) * w + (j - 1)],
-            );
-        }
-    }
-    let value = r[n * w + m];
-
-    // Algorithm 2: R_{i,m+1} = R_{n+1,j} = -inf, R_{n+1,m+1} = R_{n,m},
-    // padded costs are 0, E_{n+1,m+1} = 1.
-    for i in 1..=n {
-        r[i * w + m + 1] = f64::NEG_INFINITY;
-    }
-    for j in 1..=m {
-        r[(n + 1) * w + j] = f64::NEG_INFINITY;
-    }
-    r[(n + 1) * w + m + 1] = value;
-    let d = |i: usize, j: usize| {
-        if i <= n && j <= m {
-            cost[(i - 1) * m + (j - 1)]
-        } else {
-            0.0
-        }
-    };
-
-    let mut e = vec![0.0f64; (n + 2) * w];
-    e[(n + 1) * w + m + 1] = 1.0;
-    for j in (1..=m).rev() {
-        for i in (1..=n).rev() {
-            let rij = r[i * w + j];
-            let a = ((r[(i + 1) * w + j] - rij - d(i + 1, j)) / gamma).exp();
-            let b = ((r[i * w + j + 1] - rij - d(i, j + 1)) / gamma).exp();
-            let c = ((r[(i + 1) * w + j + 1] - rij - d(i + 1, j + 1)) / gamma).exp();
-            e[i * w + j] =
-                e[(i + 1) * w + j] * a + e[i * w + j + 1] * b + e[(i + 1) * w + j + 1] * c;
-        }
-    }
-
-    let mut grad = vec![0.0f64; n * m];
-    for i in 1..=n {
-        for j in 1..=m {
-            grad[(i - 1) * m + (j - 1)] = e[i * w + j];
+    let (value, weights) = forward(cost, n, m, gamma);
+    // Reverse adjoints through the retained local Gibbs probabilities. Do not
+    // reconstruct probabilities from rounded differences of cumulative costs.
+    let w = m + 1;
+    let mut adjoint = vec![0.0; (n + 1) * w];
+    adjoint[n * w + m] = 1.0;
+    let mut grad = vec![0.0; n * m];
+    for i in (1..=n).rev() {
+        for j in (1..=m).rev() {
+            let index = (i - 1) * m + j - 1;
+            let g = adjoint[i * w + j];
+            grad[index] = g;
+            let [up, left, diagonal] = weights[index];
+            adjoint[(i - 1) * w + j] += g * up;
+            adjoint[i * w + j - 1] += g * left;
+            adjoint[(i - 1) * w + j - 1] += g * diagonal;
         }
     }
     Ok((value, grad))
@@ -275,7 +284,7 @@ pub fn soft_dtw_divergence_grad(x: &[f64], y: &[f64], gamma: f64) -> Result<(f64
     Ok((xy - 0.5 * xx - 0.5 * yy, grad))
 }
 
-/// Soft-DTW divergence (commonly used because it is nonnegative and zero on identical inputs).
+/// Debiased Soft-DTW value, zero on identical inputs in exact arithmetic.
 pub fn soft_dtw_divergence(x: &[f64], y: &[f64], gamma: f64) -> Result<f64> {
     let xy = soft_dtw(x, y, gamma)?;
     let xx = soft_dtw(x, x, gamma)?;
@@ -288,7 +297,8 @@ pub fn soft_dtw_divergence(x: &[f64], y: &[f64], gamma: f64) -> Result<f64> {
 /// - `cost_xx` shape `n×n`
 /// - `cost_yy` shape `m×m`
 ///
-/// This mirrors the scalar `soft_dtw_divergence` but works for arbitrary distances.
+/// This mirrors the scalar `soft_dtw_divergence` for supplied costs. Arbitrary
+/// matrices do not guarantee nonnegativity; the result is not clamped.
 pub fn soft_dtw_divergence_cost(
     cost_xy: &[f64],
     cost_xx: &[f64],

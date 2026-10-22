@@ -45,10 +45,11 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
 
 - `soft_dtw`: Soft-DTW (Cuturi & Blondel 2017) and the debiased Soft-DTW
   divergence (Blondel, Mensch & Vert 2021). `soft_dtw` / `soft_dtw_cost` for the
-  value, `soft_dtw_divergence` / `soft_dtw_divergence_cost` for the nonnegative,
-  self-zeroing variant, and `soft_dtw_cost_grad` / `soft_dtw_grad` /
+  value, `soft_dtw_divergence` / `soft_dtw_divergence_cost` for the debiased
+  variant (self-zeroing in exact arithmetic), and `soft_dtw_cost_grad` / `soft_dtw_grad` /
   `soft_dtw_divergence_grad` for value plus gradient (Cuturi & Blondel's
-  backward recursion). Use it to score how well two sequences align.
+  expected alignment). Nonnegativity is not guaranteed for arbitrary supplied
+  cost matrices. Use it to score how well two sequences align.
 - `soft_shortest_path`: soft shortest path on a DAG (Mensch & Blondel 2018
   framing). `soft_shortest_path_edge_marginals` returns the value and the
   per-edge marginals; those marginals are the gradient w.r.t. edge cost, i.e. a
