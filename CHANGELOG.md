@@ -11,9 +11,18 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ### Fixed
 
+- Preserve Soft-DTW partition mass and expected-alignment gradients for tiny
+  positive temperatures and large cost offsets; avoid intermediate subtraction
+  overflow when opposite-sign finite costs have a finite scaled difference.
 - Attribute the Soft-DTW divergence to Blondel, Mensch & Vert (2021).
 - README no longer claims end-to-end training for operators without
   gradients, and states that `control` uses `f32`.
+
+### Changed
+
+- Clarify that the debiased Soft-DTW divergence is self-zeroing in exact
+  arithmetic, while nonnegativity is not guaranteed for arbitrary cost
+  matrices; describe the gradient as expected alignment.
 
 ## [0.2.0] - 2026-06-11
 
