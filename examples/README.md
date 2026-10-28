@@ -13,7 +13,7 @@ captured from release runs.
 | Align noisy sentence sequences | `sentence_alignment_soft_dtw` |
 | Run soft shortest path over a graphops graph | `soft_path_on_graph` |
 
-## Soft Shortest Path
+## Soft shortest path
 
 ### `soft_path_attention`: what do edge marginals look like?
 
@@ -34,8 +34,8 @@ edge 3 (2->3, cost=3): marginal p(e in path) = 0.00033535013046647805
 
 ### `soft_path_on_graph`: how does temperature spread path mass?
 
-Builds a weighted DAG with `graphops`, converts it to `structops::Edge`, and
-sweeps the smoothing parameter.
+Builds a weighted DAG with `graphops`, converts its edges to
+`structops::soft_shortest_path::Edge`, and sweeps the smoothing parameter.
 
 ```bash
 cargo run --release --example soft_path_on_graph

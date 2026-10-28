@@ -2,19 +2,12 @@
 
 Differentiable operators for discrete structure.
 
-structops implements continuous relaxations of discrete operations so they can
-sit inside a gradient-trained model. A hard `min`, an `if`/`else` branch, or a
-dynamic-programming recurrence has a zero or undefined gradient, which blocks
-backpropagation through any model that needs to align two sequences, route over
-a graph, or branch on a learned condition. Each operator replaces the hard
-operation with a temperature- or smoothing-parameterized version: it recovers
-the discrete semantics in the zero-temperature limit and is differentiable
-everywhere else. Soft-DTW and soft shortest path return their gradients
+structops smooths sequence alignment, shortest paths on directed acyclic graphs,
+and control flow. Soft-DTW and soft shortest path return explicit gradients
 (`soft_dtw_cost_grad`, `soft_dtw_grad`, `soft_dtw_divergence_grad`,
-`soft_shortest_path_edge_marginals`); the `control` operators are closed-form
-sigmoid expressions with no gradient helpers, so differentiate them in your own
-autodiff. Inputs and outputs are plain slices and `Vec`, so the operators drop
-into any backend.
+`soft_shortest_path_edge_marginals`). The `control` operators compute numeric
+relaxations without gradient helpers. Inputs and outputs are plain slices and
+`Vec`; connecting them to an autodiff graph requires backend-specific code.
 
 ## Quickstart
 
@@ -35,8 +28,8 @@ let edges = [
 ];
 
 // `gamma` smooths min into log-sum-exp. `p[k]` is the marginal probability
-// that edge k lies on a path, equal to d(value)/d(cost_k): a differentiable
-// attention distribution over edges.
+// that edge k lies on a path, equal to d(value)/d(cost_k).
+// These edge inclusion probabilities need not sum to 1.
 let (value, p) = soft_shortest_path_edge_marginals(4, &edges, 0.5).unwrap();
 assert!(p[0] > p[2]); // the cheaper path carries more weight
 ```
@@ -53,11 +46,14 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
 - `soft_shortest_path`: soft shortest path on a DAG (Mensch & Blondel 2018
   framing). `soft_shortest_path_edge_marginals` returns the value and the
   per-edge marginals; those marginals are the gradient w.r.t. edge cost, i.e. a
-  DP-shaped attention distribution over edges.
+  distribution over paths expressed as edge inclusion probabilities. Node
+  indices must be topologically ordered, with `from < to` for every edge.
 - `control`: relaxed control flow (Petersen et al. 2021). Soft comparisons
   (`soft_lt`, `soft_gt`, `soft_eq`), soft conditionals (`soft_if`,
   `soft_if_scalar`), and bounded soft loops (`soft_while`, `soft_for`), each
-  approaching its hard counterpart as the temperature goes to 0.
+  using explicit blending weights or smoothing parameters. Comparisons sharpen
+  as `beta` grows; conditionals sharpen as temperature falls. At a tie,
+  `soft_lt`, `soft_gt`, and the conditional weight remain 0.5.
 
 ## Public invariants (must not change)
 

@@ -135,8 +135,17 @@ where
 /// state = weights[i] * body(state, i) + (1 - weights[i]) * state
 /// ```
 ///
-/// Uniform weights `[1/n; n]` produce the average over all iteration outputs.
-/// Binary weights `{0, 1}` select which iterations execute (hard masking).
+/// Uniform weights repeatedly blend the previous state with the next output;
+/// they do not compute an arithmetic mean of the outputs. Binary weights
+/// `{0, 1}` select which outputs update the state. The body runs at every step,
+/// including steps with zero weight.
+///
+/// ```
+/// use structops::control::soft_for;
+///
+/// let result = soft_for(&[0.0], |_, _| vec![1.0], 2, &[0.5, 0.5]);
+/// assert_eq!(result, vec![0.75]); // 0 -> 0.5 -> 0.75
+/// ```
 ///
 /// # Panics
 ///
