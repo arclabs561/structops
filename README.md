@@ -9,10 +9,8 @@ backpropagation through any model that needs to align two sequences, route over
 a graph, or branch on a learned condition. Each operator replaces the hard
 operation with a temperature- or smoothing-parameterized version: it recovers
 the discrete semantics in the zero-temperature limit and is differentiable
-everywhere else. Soft-DTW and soft shortest path return their gradients
-(`soft_dtw_cost_grad`, `soft_dtw_grad`, `soft_dtw_divergence_grad`,
-`soft_shortest_path_edge_marginals`); the `control` operators are closed-form
-sigmoid expressions with no gradient helpers, so differentiate them in your own
+everywhere else. Soft-DTW and soft shortest path return their gradients; the
+`control` operators have no gradient helpers, so differentiate them in your own
 autodiff. Inputs and outputs are plain slices and `Vec`, so the operators drop
 into any backend.
 
@@ -41,6 +39,16 @@ let (value, p) = soft_shortest_path_edge_marginals(4, &edges, 0.5).unwrap();
 assert!(p[0] > p[2]); // the cheaper path carries more weight
 ```
 
+The same graph and `gamma` in `cargo run --release --example soft_path_attention`:
+
+```text
+soft shortest-path value = 1.9998322968135522
+edge 0 (0->1, cost=1): marginal p(e in path) = 0.9996646498695337
+edge 1 (1->3, cost=1): marginal p(e in path) = 0.9996646498695337
+edge 2 (0->2, cost=3): marginal p(e in path) = 0.00033535013046647805
+edge 3 (2->3, cost=3): marginal p(e in path) = 0.00033535013046647805
+```
+
 ## What's here
 
 - `soft_dtw`: Soft-DTW (Cuturi & Blondel 2017) and the debiased Soft-DTW
@@ -55,15 +63,17 @@ assert!(p[0] > p[2]); // the cheaper path carries more weight
   per-edge marginals; those marginals are the gradient w.r.t. edge cost, i.e. a
   DP-shaped attention distribution over edges.
 - `control`: relaxed control flow (Petersen et al. 2021). Soft comparisons
-  (`soft_lt`, `soft_gt`, `soft_eq`), soft conditionals (`soft_if`,
-  `soft_if_scalar`), and bounded soft loops (`soft_while`, `soft_for`), each
-  approaching its hard counterpart as the temperature goes to 0.
+  (`soft_lt`, `soft_gt`, `soft_eq`) and soft conditionals (`soft_if`,
+  `soft_if_scalar`) approach their hard counterparts as `beta` grows or
+  `temperature` goes to 0. The bounded soft loops (`soft_while`, `soft_for`)
+  blend each step by a caller-supplied continuation probability or weight, and
+  become hard loops when those are 0 or 1.
 
 ## Public invariants (must not change)
 
 - **Backend-agnostic core**: slice-based APIs (no tensor backend types in public APIs). `soft_dtw` and `soft_shortest_path` use `f64`; `control` uses `f32`.
 - **Determinism**: no RNG in core operators.
-- **Explicit smoothing parameters**: e.g. $\gamma$ must be passed and validated.
+- **Explicit smoothing parameters**: e.g. `gamma` must be passed and validated.
 
 ## Examples
 
